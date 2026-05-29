@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import { defineConfig } from "vite";
 
 const appSourceOrder = [
@@ -28,7 +29,8 @@ function vbaParserAppPlugin() {
       return appSourceOrder
         .map((name) => {
           const source = readFileSync(`src/${name}.ts`, "utf8");
-          return `// ---- ${name}.ts ----\n${source}`;
+          const javaScript = stripTypeScriptTypes(source, { mode: "transform" });
+          return `// ---- ${name}.ts ----\n${javaScript}`;
         })
         .join("\n\n");
     },
