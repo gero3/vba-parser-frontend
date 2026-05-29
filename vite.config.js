@@ -38,6 +38,7 @@ function vbaParserAppPlugin() {
 }
 
 export default defineConfig(({ mode }) => ({
+  base: "/vba-parser-frontend/",
   plugins: [vbaParserAppPlugin()],
   build: {
     assetsInlineLimit: 0,
