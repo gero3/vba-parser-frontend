@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VBA Extractor</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <h1>VBA Extractor</h1>
+            <p>Open an Office document locally and extract VBA modules, forms, and binary form resources.</p>
+          </div>
+          <button id="clearButton" class="icon-button" type="button" title="Clear results" aria-label="Clear results">
+            <span aria-hidden="true">×</span>
+          </button>
+        </header>
+
+        <label id="dropZone" class="drop-zone" for="fileInput">
+          <input
+            id="fileInput"
+            type="file"
+            accept=".doc,.docm,.dotm,.xls,.xlsm,.xltm,.ppt,.pptm,.potm,.ppam,.xlam,.docx,.xlsx,.pptx,.bas,.cls,.frm,.frx"
+          />
+          <span class="upload-icon" aria-hidden="true">⇧</span>
+          <strong>Choose or drop an Office document</strong>
+          <small>Macro-enabled OOXML files work best. Legacy OLE files are also inspected directly.</small>
+        </label>
+
+        <section id="statusPanel" class="status-panel" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="statusText">Waiting for a document.</span>
+        </section>
+
+        <section id="summaryPanel" class="summary-panel hidden">
+          <div>
+            <span class="metric" id="moduleCount">0</span>
+            <span>VBA modules</span>
+          </div>
+          <div>
+            <span class="metric" id="formCount">0</span>
+            <span>FRM files</span>
+          </div>
+          <div>
+            <span class="metric" id="frxCount">0</span>
+            <span>FRX resources</span>
+          </div>
+          <button id="downloadAllButton" type="button">Download all</button>
+        </section>
+
+        <section id="results" class="results" aria-label="Extraction results"></section>
+      </section>
+    </main>
+    <script src="./src/main.js"></script>
+  </body>
+</html>
