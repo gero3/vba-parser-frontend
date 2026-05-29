@@ -1,4 +1,11 @@
-function renderResults(files: ExtractedFile[]) {
+import type { ExtractedFile, ResultGroup } from "./types";
+import { downloadFile, escapeHtml, formatBytes, kindRank } from "./runtime";
+import { byteLength, printableStreamName } from "./extract";
+import { buildDesignerSummary, getDisplayPath, renderDesignerSummary } from "./designer-ui";
+import { renderAnalysis } from "./analysis-ui";
+import { formCount, frxCount, moduleCount, results, summaryPanel } from "./app";
+
+export function renderResults(files: ExtractedFile[]) {
   results.innerHTML = "";
   summaryPanel.classList.toggle("hidden", files.length === 0);
   moduleCount.textContent = String(files.filter((file) => file.kind === "vba").length);
@@ -10,7 +17,7 @@ function renderResults(files: ExtractedFile[]) {
   }
 }
 
-function buildResultGroups(files: ExtractedFile[]) {
+export function buildResultGroups(files: ExtractedFile[]) {
   const groups = new Map<string, ResultGroup>();
 
   for (const file of files) {
@@ -39,7 +46,7 @@ function buildResultGroups(files: ExtractedFile[]) {
   });
 }
 
-function getResultOwner(file: ExtractedFile) {
+export function getResultOwner(file: ExtractedFile) {
   const streamPath = extractInternalStreamPath(file.sourcePath);
   if (streamPath && !streamPath.toLowerCase().startsWith("vba/")) {
     const owner = streamPath.split("/")[0];
@@ -56,14 +63,14 @@ function getResultOwner(file: ExtractedFile) {
   return file.name.replace(/\.(bas|cls|frm|frx|png|jpg|jpeg|gif|bmp|tif|ico|cur|wmf|emf)$/i, "");
 }
 
-function extractInternalStreamPath(sourcePath: string) {
+export function extractInternalStreamPath(sourcePath: string) {
   const marker = "vbaProject.bin/";
   const markerIndex = sourcePath.indexOf(marker);
   if (markerIndex < 0) return undefined;
   return sourcePath.slice(markerIndex + marker.length).replace(/\s+@\s+0x[0-9a-f]+.*$/i, "").replace(/\s+\(recovered by scan\)$/i, "");
 }
 
-function renderResultGroup(group: ResultGroup) {
+export function renderResultGroup(group: ResultGroup) {
   const section = document.createElement("section");
   section.className = "result-group";
 
@@ -91,7 +98,7 @@ function renderResultGroup(group: ResultGroup) {
   return section;
 }
 
-function describeGroup(group: ResultGroup) {
+export function describeGroup(group: ResultGroup) {
   const parts = [
     countLabel(group.code.length, "code file"),
     countLabel(group.resources.length, "resource stream"),
@@ -101,12 +108,12 @@ function describeGroup(group: ResultGroup) {
   return parts.join(" · ") || "No extracted files";
 }
 
-function countLabel(count: number, label: string) {
+export function countLabel(count: number, label: string) {
   if (!count) return "";
   return `${count} ${label}${count === 1 ? "" : "s"}`;
 }
 
-function appendGroupSection(parent: HTMLElement, title: string, files: ExtractedFile[]) {
+export function appendGroupSection(parent: HTMLElement, title: string, files: ExtractedFile[]) {
   if (files.length === 0) return;
 
   const section = document.createElement("section");
@@ -124,7 +131,7 @@ function appendGroupSection(parent: HTMLElement, title: string, files: Extracted
   parent.append(section);
 }
 
-function renderFileCard(file: ExtractedFile) {
+export function renderFileCard(file: ExtractedFile) {
   const card = document.createElement("article");
   card.className = "result-card";
 
@@ -168,6 +175,6 @@ function renderFileCard(file: ExtractedFile) {
   return card;
 }
 
-function canPreviewImage(mimeType: string) {
+export function canPreviewImage(mimeType: string) {
   return ["image/png", "image/jpeg", "image/gif", "image/bmp", "image/x-icon"].includes(mimeType);
 }

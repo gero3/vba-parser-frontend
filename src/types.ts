@@ -1,4 +1,4 @@
-type ExtractedFile = {
+export type ExtractedFile = {
   name: string;
   kind: "vba" | "frm" | "frx" | "media" | "binary";
   bytes: Uint8Array;
@@ -8,12 +8,12 @@ type ExtractedFile = {
   sourcePath: string;
 };
 
-type OfficeZipEntryData = {
+export type OfficeZipEntryData = {
   entry: ZipEntry;
   bytes: Uint8Array;
 };
 
-type ProjectReferenceModel = {
+export type ProjectReferenceModel = {
   source: "PROJECT" | "dir";
   kind: "registered" | "control" | "project" | "package" | "object" | "unknown";
   name?: string;
@@ -24,7 +24,7 @@ type ProjectReferenceModel = {
   raw: string;
 };
 
-type BinaryAnalysis = {
+export type BinaryAnalysis = {
   title: string;
   summary: Array<{ label: string; value: string }>;
   stringCount: number;
@@ -33,7 +33,7 @@ type BinaryAnalysis = {
   oforms?: OFormsAnalysis;
 };
 
-type OFormsAnalysis = {
+export type OFormsAnalysis = {
   kind: string;
   confidence: "high" | "medium" | "low";
   records: Array<{
@@ -45,25 +45,25 @@ type OFormsAnalysis = {
   notes: string[];
 };
 
-type ExtractedString = {
+export type ExtractedString = {
   encoding: string;
   offset: number;
   value: string;
 };
 
-type ProjectModule = {
+export type ProjectModule = {
   name: string;
   type: "module" | "class" | "form" | "document";
 };
 
-type DirModule = {
+export type DirModule = {
   name: string;
   streamName: string;
   textOffset: number;
   moduleTypeId?: number;
 };
 
-type ResultGroup = {
+export type ResultGroup = {
   name: string;
   code: ExtractedFile[];
   resources: ExtractedFile[];
@@ -72,13 +72,13 @@ type ResultGroup = {
   designer?: DesignerSummary;
 };
 
-type DesignerSummary = {
+export type DesignerSummary = {
   formName: string;
   frame: Record<string, string>;
   controls: DesignerControl[];
 };
 
-type DesignerControl = {
+export type DesignerControl = {
   id: string;
   path: string;
   type?: string;
@@ -91,7 +91,7 @@ type DesignerControl = {
   children: DesignerControl[];
 };
 
-type VisualPreviewModel = {
+export type VisualPreviewModel = {
   name: string;
   width: number;
   height: number;
@@ -99,7 +99,7 @@ type VisualPreviewModel = {
   controls: VisualPreviewControl[];
 };
 
-type VisualPreviewControl = {
+export type VisualPreviewControl = {
   id: string;
   path: string;
   kind: string;
@@ -113,7 +113,7 @@ type VisualPreviewControl = {
   progId?: string;
 };
 
-type Bounds = {
+export type Bounds = {
   left: number;
   top: number;
   width: number;
@@ -122,7 +122,7 @@ type Bounds = {
   confidence: "high" | "medium" | "low";
 };
 
-type ApplicationModel = {
+export type ApplicationModel = {
   generatedAt: string;
   sourceFiles: Array<{
     name: string;
@@ -139,7 +139,7 @@ type ApplicationModel = {
   migrationNotes: string[];
 };
 
-type ModuleModel = {
+export type ModuleModel = {
   name: string;
   fileName: string;
   kind: "standard" | "class" | "form" | "document";
@@ -153,7 +153,7 @@ type ModuleModel = {
   riskMarkers: RiskMarker[];
 };
 
-type DeclarationModel = {
+export type DeclarationModel = {
   name: string;
   scope: string;
   type?: string;
@@ -161,14 +161,14 @@ type DeclarationModel = {
   statement: string;
 };
 
-type RiskMarker = {
+export type RiskMarker = {
   category: string;
   line: number;
   text: string;
   reason: string;
 };
 
-type ProcedureModel = {
+export type ProcedureModel = {
   name: string;
   kind: "Sub" | "Function" | "Property";
   scope: "Public" | "Private" | "Friend" | "Implicit";
@@ -181,7 +181,7 @@ type ProcedureModel = {
   uses: string[];
 };
 
-type EventModel = {
+export type EventModel = {
   procedure: string;
   controlName: string;
   eventName: string;
@@ -189,13 +189,13 @@ type EventModel = {
   linkedControlType?: string;
 };
 
-type FormModel = {
+export type FormModel = {
   name: string;
   properties: Record<string, string>;
   controls: FlatControlModel[];
 };
 
-type FlatControlModel = {
+export type FlatControlModel = {
   id: string;
   path: string;
   name?: string;
@@ -208,21 +208,21 @@ type FlatControlModel = {
   parentPath?: string;
 };
 
-type DependencyModel = {
+export type DependencyModel = {
   category: string;
   value: string;
   source: string;
   reason: string;
 };
 
-type AssetModel = {
+export type AssetModel = {
   name: string;
   mimeType: string;
   size: number;
   sourcePath: string;
 };
 
-type ActiveXControlModel = {
+export type ActiveXControlModel = {
   id: string;
   xmlPath: string;
   binPath?: string;
@@ -234,7 +234,7 @@ type ActiveXControlModel = {
   sourceFiles: string[];
 };
 
-type ActiveXPersistenceAnalysis = {
+export type ActiveXPersistenceAnalysis = {
   format: "cfb-storage" | "raw-stream" | "empty" | "unknown";
   confidence: "high" | "medium" | "low";
   size: number;
@@ -255,7 +255,7 @@ type ActiveXPersistenceAnalysis = {
   warnings: string[];
 };
 
-type ActiveXPersistenceStream = {
+export type ActiveXPersistenceStream = {
   path: string;
   size: number;
   strings: string[];
@@ -264,7 +264,7 @@ type ActiveXPersistenceStream = {
   oforms?: string;
 };
 
-type MediaMatch = {
+export type MediaMatch = {
   extension: string;
   mimeType: string;
   length: number;
@@ -272,9 +272,9 @@ type MediaMatch = {
   label?: string;
 };
 
-const CLSID_STD_PICTURE = [0x04, 0x52, 0xe3, 0x0b, 0x91, 0x8f, 0xce, 0x11, 0x9d, 0xe3, 0x00, 0xaa, 0x00, 0x4b, 0xb8, 0x51];
+export const CLSID_STD_PICTURE = [0x04, 0x52, 0xe3, 0x0b, 0x91, 0x8f, 0xce, 0x11, 0x9d, 0xe3, 0x00, 0xaa, 0x00, 0x4b, 0xb8, 0x51];
 
-type ZipEntry = {
+export type ZipEntry = {
   name: string;
   method: number;
   compressedSize: number;
@@ -282,7 +282,7 @@ type ZipEntry = {
   localHeaderOffset: number;
 };
 
-type DirectoryEntry = {
+export type DirectoryEntry = {
   index: number;
   name: string;
   type: number;
@@ -294,7 +294,7 @@ type DirectoryEntry = {
   path: string;
 };
 
-const END_OF_CHAIN = -2;
-const FREE_SECTOR = -1;
-const FAT_SECTOR = -3;
-const DIFAT_SECTOR = -4;
+export const END_OF_CHAIN = -2;
+export const FREE_SECTOR = -1;
+export const FAT_SECTOR = -3;
+export const DIFAT_SECTOR = -4;

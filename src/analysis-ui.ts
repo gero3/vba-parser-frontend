@@ -1,4 +1,8 @@
-function renderAnalysis(analysis: BinaryAnalysis, bytes: Uint8Array) {
+import type { BinaryAnalysis, ExtractedString, OFormsAnalysis } from "./types";
+import { formatBytes, toHex } from "./runtime";
+import { collectGuids, collectStrings, hexDump, labelGuid, labelPossibleIdentifier } from "./extract";
+
+export function renderAnalysis(analysis: BinaryAnalysis, bytes: Uint8Array) {
   const section = document.createElement("section");
   section.className = "analysis";
 
@@ -46,7 +50,7 @@ function renderAnalysis(analysis: BinaryAnalysis, bytes: Uint8Array) {
   return section;
 }
 
-function renderOFormsAnalysis(oforms: OFormsAnalysis) {
+export function renderOFormsAnalysis(oforms: OFormsAnalysis) {
   const wrapper = document.createElement("section");
   wrapper.className = "oforms-analysis";
 
@@ -105,7 +109,7 @@ function renderOFormsAnalysis(oforms: OFormsAnalysis) {
   return wrapper;
 }
 
-function renderLazyGuids(analysis: BinaryAnalysis, bytes: Uint8Array) {
+export function renderLazyGuids(analysis: BinaryAnalysis, bytes: Uint8Array) {
   const wrapper = document.createElement("div");
   wrapper.className = "analysis-table-wrap";
 
@@ -142,7 +146,7 @@ function renderLazyGuids(analysis: BinaryAnalysis, bytes: Uint8Array) {
   return wrapper;
 }
 
-function renderLazyStrings(analysis: BinaryAnalysis, bytes: Uint8Array) {
+export function renderLazyStrings(analysis: BinaryAnalysis, bytes: Uint8Array) {
   const wrapper = document.createElement("div");
   wrapper.className = "analysis-table-wrap";
 
@@ -179,7 +183,7 @@ function renderLazyStrings(analysis: BinaryAnalysis, bytes: Uint8Array) {
   return wrapper;
 }
 
-function renderStringTable(strings: ExtractedString[]) {
+export function renderStringTable(strings: ExtractedString[]) {
   const table = document.createElement("table");
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
@@ -205,7 +209,7 @@ function renderStringTable(strings: ExtractedString[]) {
   return table;
 }
 
-function renderAnalysisTable(title: string, headers: string[], rows: string[][]) {
+export function renderAnalysisTable(title: string, headers: string[], rows: string[][]) {
   const wrapper = document.createElement("div");
   wrapper.className = "analysis-table-wrap";
 

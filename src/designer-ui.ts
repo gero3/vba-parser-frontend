@@ -1,4 +1,9 @@
-function renderLlmRebuildBrief(model: ApplicationModel) {
+import type { ApplicationModel, Bounds, DesignerControl, DesignerSummary, ExtractedFile, FlatControlModel, ResultGroup, VisualPreviewControl, VisualPreviewModel } from "./types";
+import { decodeText, downloadBlob, downloadBytes, encodeText, escapeHtml, readU32, safeFileName } from "./runtime";
+import { labelPossibleIdentifier, labelProgId, printableStreamName } from "./extract";
+import { extractInternalStreamPath } from "./results-ui";
+
+export function renderLlmRebuildBrief(model: ApplicationModel) {
   const eventCount = model.modules.reduce((sum, module) => sum + module.events.length, 0);
   const linkedEventCount = model.modules.reduce((sum, module) => sum + module.events.filter((event) => event.linkedControlPath).length, 0);
   const lines = [
@@ -84,12 +89,12 @@ function renderLlmRebuildBrief(model: ApplicationModel) {
   return lines.join("\n");
 }
 
-function getDisplayPath(file: ExtractedFile) {
+export function getDisplayPath(file: ExtractedFile) {
   const streamPath = extractInternalStreamPath(file.sourcePath);
   return streamPath ? printableStreamName(streamPath) : file.sourcePath;
 }
 
-function buildDesignerSummary(group: ResultGroup): DesignerSummary | undefined {
+export function buildDesignerSummary(group: ResultGroup): DesignerSummary | undefined {
   const hasFormCode = group.code.some((file) => file.kind === "frm");
   if (!hasFormCode && group.resources.length === 0) return undefined;
   if (group.name === "Project metadata") return undefined;
@@ -152,7 +157,7 @@ function buildDesignerSummary(group: ResultGroup): DesignerSummary | undefined {
   };
 }
 
-function parseVbFrameProperties(resources: ExtractedFile[]) {
+export function parseVbFrameProperties(resources: ExtractedFile[]) {
   const frame: Record<string, string> = {};
   const vbFrame = resources.find((resource) => extractInternalStreamPath(resource.sourcePath)?.endsWith("/\x03VBFrame"));
   if (!vbFrame) return frame;
@@ -169,7 +174,7 @@ function parseVbFrameProperties(resources: ExtractedFile[]) {
   return frame;
 }
 
-function mergeControlResource(control: DesignerControl, resource: ExtractedFile) {
+export function mergeControlResource(control: DesignerControl, resource: ExtractedFile) {
   const internalPath = extractInternalStreamPath(resource.sourcePath);
   const streamName = internalPath?.split("/").at(-1);
   if (!streamName) return;
@@ -202,15 +207,15 @@ function mergeControlResource(control: DesignerControl, resource: ExtractedFile)
   if (!control.name && control.caption) control.name = control.caption;
 }
 
-function stripConfidence(value: string | undefined) {
+export function stripConfidence(value: string | undefined) {
   return value?.replace(/\s+\((?:high|medium|low)\)$/i, "");
 }
 
-function propertyConfidence(value: string | undefined) {
+export function propertyConfidence(value: string | undefined) {
   return value?.match(/\((high|medium|low)\)$/i)?.[1].toLowerCase();
 }
 
-function finalizeControlBounds(control: DesignerControl) {
+export function finalizeControlBounds(control: DesignerControl) {
   const size = parseSizeHint(control.properties["Decoded DisplayedSize"]) ?? parseSizeHint(control.properties["Decoded LogicalSize"]);
   const position = parsePositionHint(control.properties["Decoded SitePosition"]);
   if (size && position) {
@@ -225,19 +230,19 @@ function finalizeControlBounds(control: DesignerControl) {
   }
 }
 
-function parseSizeHint(value: string | undefined) {
+export function parseSizeHint(value: string | undefined) {
   const match = value?.match(/(\d+)\s+x\s+(\d+)\s+twips.*\((medium|low)\)/i);
   if (!match) return undefined;
   return { width: Number(match[1]), height: Number(match[2]), confidence: match[3] as "medium" | "low" };
 }
 
-function parsePositionHint(value: string | undefined) {
+export function parsePositionHint(value: string | undefined) {
   const match = value?.match(/(\d+),\s*(\d+)\s+twips.*\((medium|low)\)/i);
   if (!match) return undefined;
   return { left: Number(match[1]), top: Number(match[2]), confidence: match[3] as "medium" | "low" };
 }
 
-function inferBoundsFromResource(resource: ExtractedFile): Bounds | undefined {
+export function inferBoundsFromResource(resource: ExtractedFile): Bounds | undefined {
   const internalPath = extractInternalStreamPath(resource.sourcePath);
   if (!internalPath?.endsWith("/f")) return undefined;
   const bytes = resource.bytes;
@@ -262,7 +267,7 @@ function inferBoundsFromResource(resource: ExtractedFile): Bounds | undefined {
   return best?.confidence === "low" && (best.left > 25_000 || best.top > 25_000) ? undefined : best;
 }
 
-function scoreBounds(bounds: Bounds) {
+export function scoreBounds(bounds: Bounds) {
   let score = 0;
   if (bounds.width > bounds.height) score += 1;
   if (bounds.width > 500 && bounds.height > 300) score += 2;
@@ -271,7 +276,7 @@ function scoreBounds(bounds: Bounds) {
   return score;
 }
 
-function extractResourceProperties(resources: ExtractedFile[]) {
+export function extractResourceProperties(resources: ExtractedFile[]) {
   const properties: Record<string, string> = {};
   for (const resource of resources) {
     const records = resource.analysis?.oforms?.records ?? [];
@@ -303,15 +308,7 @@ function extractResourceProperties(resources: ExtractedFile[]) {
   return properties;
 }
 
-function isHumanLabel(value: string) {
-  const plain = value.replace(/\s+\(.+\)$/, "");
-  if (/^Forms\./i.test(plain) || /Embedded Object/i.test(plain) || /Microsoft Forms/i.test(plain)) return false;
-  if (/^Tahoma$/i.test(plain) || /^0x[0-9a-f]+$/i.test(plain) || /^\{[0-9A-F-]+\}$/i.test(plain)) return false;
-  if (/^'/.test(plain) || /^[-=]{5,}$/.test(plain) || /https?:\/\//i.test(plain) || /copyright|permission is hereby/i.test(plain)) return false;
-  return /^[\w .'-]{2,80}$/i.test(plain);
-}
-
-function renderDesignerSummary(summary: DesignerSummary) {
+export function renderDesignerSummary(summary: DesignerSummary) {
   const section = document.createElement("section");
   section.className = "designer-summary";
 
@@ -339,7 +336,7 @@ function renderDesignerSummary(summary: DesignerSummary) {
   return section;
 }
 
-function renderKeyValueGrid(values: Record<string, string>) {
+export function renderKeyValueGrid(values: Record<string, string>) {
   const dl = document.createElement("dl");
   dl.className = "designer-grid";
   for (const [key, value] of Object.entries(values).slice(0, 24)) {
@@ -352,7 +349,7 @@ function renderKeyValueGrid(values: Record<string, string>) {
   return dl;
 }
 
-function renderLayoutPreview(summary: DesignerSummary) {
+export function renderLayoutPreview(summary: DesignerSummary) {
   const wrapper = document.createElement("div");
   wrapper.className = "layout-preview-wrap";
 
@@ -396,11 +393,11 @@ function renderLayoutPreview(summary: DesignerSummary) {
   return wrapper;
 }
 
-function flattenDesignerControls(controls: DesignerControl[]): DesignerControl[] {
+export function flattenDesignerControls(controls: DesignerControl[]): DesignerControl[] {
   return controls.flatMap((control) => [control, ...flattenDesignerControls(control.children)]);
 }
 
-function renderVisualLayoutPreview(summary: DesignerSummary) {
+export function renderVisualLayoutPreview(summary: DesignerSummary) {
   const wrapper = document.createElement("div");
   wrapper.className = "layout-preview-wrap";
 
@@ -458,7 +455,7 @@ function renderVisualLayoutPreview(summary: DesignerSummary) {
   return wrapper;
 }
 
-function buildVisualPreviewModel(summary: DesignerSummary): VisualPreviewModel | undefined {
+export function buildVisualPreviewModel(summary: DesignerSummary): VisualPreviewModel | undefined {
   const controls = flattenDesignerControls(summary.controls)
     .filter((control) => control.bounds)
     .map((control) => ({ control, bounds: control.bounds! }));
@@ -489,7 +486,7 @@ function buildVisualPreviewModel(summary: DesignerSummary): VisualPreviewModel |
   };
 }
 
-function getVisualControlKind(control: Pick<DesignerControl | FlatControlModel | VisualPreviewControl, "type" | "progId"> & { label?: string; caption?: string; name?: string }) {
+export function getVisualControlKind(control: Pick<DesignerControl | FlatControlModel | VisualPreviewControl, "type" | "progId"> & { label?: string; caption?: string; name?: string }) {
   const value = `${control.type ?? ""} ${control.progId ?? ""} ${control.label ?? ""} ${control.caption ?? ""} ${control.name ?? ""}`.toLowerCase();
   if (value.includes("commandbutton")) return "button";
   if (value.includes("checkbox")) return "checkbox";
@@ -507,7 +504,7 @@ function getVisualControlKind(control: Pick<DesignerControl | FlatControlModel |
   return "unknown";
 }
 
-function renderVisualControlContents(control: VisualPreviewControl) {
+export function renderVisualControlContents(control: VisualPreviewControl) {
   const fragment = document.createDocumentFragment();
   const label = document.createElement("span");
   label.className = "layout-control-text";
@@ -540,7 +537,7 @@ function renderVisualControlContents(control: VisualPreviewControl) {
   return fragment;
 }
 
-function createVisualPreviewArtifacts(groups: ResultGroup[]) {
+export function createVisualPreviewArtifacts(groups: ResultGroup[]) {
   const artifacts: Array<{ path: string; bytes: Uint8Array }> = [];
   for (const group of groups) {
     if (!group.designer) continue;
@@ -553,7 +550,7 @@ function createVisualPreviewArtifacts(groups: ResultGroup[]) {
   return artifacts;
 }
 
-function renderVisualPreviewSvg(preview: VisualPreviewModel) {
+export function renderVisualPreviewSvg(preview: VisualPreviewModel) {
   const controls = preview.controls.map((control) => renderVisualControlSvg(control)).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${preview.width}" height="${preview.height}" viewBox="0 0 ${preview.width} ${preview.height}" role="img" aria-label="${escapeXml(preview.name)} visual preview">
@@ -570,7 +567,7 @@ ${controls}
 `;
 }
 
-function renderVisualControlSvg(control: VisualPreviewControl) {
+export function renderVisualControlSvg(control: VisualPreviewControl) {
   const label = truncateLabel(control.label, Math.max(6, Math.floor(control.width / 7)));
   const style = visualControlStyle(control.kind);
   const textY = control.top + Math.max(15, Math.min(control.height - 6, control.height / 2 + 4));
@@ -601,7 +598,7 @@ function renderVisualControlSvg(control: VisualPreviewControl) {
   return parts.join("\n");
 }
 
-function renderVisualPreviewHtml(preview: VisualPreviewModel) {
+export function renderVisualPreviewHtml(preview: VisualPreviewModel) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -628,7 +625,7 @@ function renderVisualPreviewHtml(preview: VisualPreviewModel) {
 `;
 }
 
-async function renderVisualPreviewPng(preview: VisualPreviewModel) {
+export async function renderVisualPreviewPng(preview: VisualPreviewModel) {
   const canvas = document.createElement("canvas");
   canvas.width = preview.width * 2;
   canvas.height = preview.height * 2;
@@ -641,7 +638,7 @@ async function renderVisualPreviewPng(preview: VisualPreviewModel) {
   });
 }
 
-function drawVisualPreviewCanvas(ctx: CanvasRenderingContext2D, preview: VisualPreviewModel) {
+export function drawVisualPreviewCanvas(ctx: CanvasRenderingContext2D, preview: VisualPreviewModel) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, preview.width, preview.height);
   ctx.strokeStyle = "#edf4f3";
@@ -666,7 +663,7 @@ function drawVisualPreviewCanvas(ctx: CanvasRenderingContext2D, preview: VisualP
   for (const control of preview.controls) drawVisualControlCanvas(ctx, control);
 }
 
-function drawVisualControlCanvas(ctx: CanvasRenderingContext2D, control: VisualPreviewControl) {
+export function drawVisualControlCanvas(ctx: CanvasRenderingContext2D, control: VisualPreviewControl) {
   const style = visualControlStyle(control.kind);
   ctx.fillStyle = style.fill;
   ctx.strokeStyle = style.stroke;
@@ -706,7 +703,7 @@ function drawVisualControlCanvas(ctx: CanvasRenderingContext2D, control: VisualP
   ctx.fillText(label, textX, control.top + Math.max(15, Math.min(control.height - 6, control.height / 2 + 4)));
 }
 
-function visualControlStyle(kind: string) {
+export function visualControlStyle(kind: string) {
   const styles: Record<string, { fill: string; stroke: string; text: string; radius: number }> = {
     button: { fill: "#eef3f4", stroke: "#8a9ca1", text: "#172026", radius: 4 },
     label: { fill: "rgba(255,255,255,0)", stroke: "rgba(255,255,255,0)", text: "#172026", radius: 0 },
@@ -722,7 +719,7 @@ function visualControlStyle(kind: string) {
   return styles[kind] ?? { fill: "rgba(217,235,232,0.88)", stroke: "#1e6b66", text: "#173532", radius: 4 };
 }
 
-function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
+export function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
   const r = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
   ctx.moveTo(x + r, y);
@@ -736,16 +733,16 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width:
   ctx.quadraticCurveTo(x, y, x + r, y);
 }
 
-function truncateLabel(value: string, maxLength: number) {
+export function truncateLabel(value: string, maxLength: number) {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, Math.max(1, maxLength - 3))}...`;
 }
 
-function escapeXml(value: string) {
+export function escapeXml(value: string) {
   return value.replace(/[<>&"']/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[char] ?? char);
 }
 
-function renderControlNode(control: DesignerControl) {
+export function renderControlNode(control: DesignerControl) {
   const node = document.createElement("details");
   node.className = "control-node";
   node.open = true;
@@ -772,6 +769,6 @@ function renderControlNode(control: DesignerControl) {
   return node;
 }
 
-function countControls(controls: DesignerControl[]): number {
+export function countControls(controls: DesignerControl[]): number {
   return controls.reduce((sum, control) => sum + 1 + countControls(control.children), 0);
 }

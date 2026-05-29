@@ -1,4 +1,10 @@
-function buildApplicationModel(files: ExtractedFile[], groups = buildResultGroups(files)): ApplicationModel {
+import type { ActiveXControlModel, ActiveXPersistenceAnalysis, ActiveXPersistenceStream, ApplicationModel, Bounds, DeclarationModel, DependencyModel, DesignerControl, DesignerSummary, EventModel, ExtractedFile, FlatControlModel, FormModel, ModuleModel, ProcedureModel, ProjectReferenceModel, RiskMarker } from "./types";
+import { formatGuid, isHumanLabel, isOle, normalizeGuidString, readU16, readU32, safeFileName, toHex } from "./runtime";
+import { byteLength, collectGuids, collectSignatures, collectStrings, extractMediaFromBinary, isUsefulDecodedPropertyString, labelGuid, labelPossibleIdentifier, parseCfb, parseOFormsStream, printableStreamName } from "./extract";
+import { buildResultGroups } from "./results-ui";
+import { getZipPath } from "./zip-export";
+
+export function buildApplicationModel(files: ExtractedFile[], groups = buildResultGroups(files)): ApplicationModel {
   const modules = files
     .filter((file) => file.text && (file.kind === "vba" || file.kind === "frm"))
     .map((file) => buildModuleModel(file));
@@ -47,7 +53,7 @@ function buildApplicationModel(files: ExtractedFile[], groups = buildResultGroup
   };
 }
 
-function parseExtractedProjectReferences(files: ExtractedFile[]): ProjectReferenceModel[] {
+export function parseExtractedProjectReferences(files: ExtractedFile[]): ProjectReferenceModel[] {
   const referenceFile = files.find((file) => file.name === "vba-project-references.json" && file.text);
   if (!referenceFile?.text) return [];
   try {
@@ -57,7 +63,7 @@ function parseExtractedProjectReferences(files: ExtractedFile[]): ProjectReferen
   }
 }
 
-function buildModuleModel(file: ExtractedFile): ModuleModel {
+export function buildModuleModel(file: ExtractedFile): ModuleModel {
   const source = file.text ?? "";
   const procedures = parseProcedures(source);
   const declarations = source
@@ -83,7 +89,7 @@ function buildModuleModel(file: ExtractedFile): ModuleModel {
   };
 }
 
-function parseProcedures(source: string): ProcedureModel[] {
+export function parseProcedures(source: string): ProcedureModel[] {
   const lines = source.split(/\r?\n/);
   const procedures: ProcedureModel[] = [];
   const startRegex = /^\s*(?:(Public|Private|Friend)\s+)?(Static\s+)?(Sub|Function|Property\s+(?:Get|Let|Set))\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\([^)]*\))?\s*(?:As\s+([A-Za-z_][A-Za-z0-9_.]*))?/i;
@@ -118,7 +124,7 @@ function parseProcedures(source: string): ProcedureModel[] {
   return procedures;
 }
 
-function parseParameters(parameterList: string) {
+export function parseParameters(parameterList: string) {
   return parameterList
     .replace(/^\(|\)$/g, "")
     .split(",")
@@ -126,7 +132,7 @@ function parseParameters(parameterList: string) {
     .filter(Boolean);
 }
 
-function parseVariableDeclarations(source: string): DeclarationModel[] {
+export function parseVariableDeclarations(source: string): DeclarationModel[] {
   const declarations: DeclarationModel[] = [];
   const lines = source.split(/\r?\n/);
   const regex = /^\s*(Public|Private|Friend|Dim|Static|Global)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:As\s+([A-Za-z_][A-Za-z0-9_.]*))?/i;
@@ -146,7 +152,7 @@ function parseVariableDeclarations(source: string): DeclarationModel[] {
   return declarations;
 }
 
-function parseConstantDeclarations(source: string): DeclarationModel[] {
+export function parseConstantDeclarations(source: string): DeclarationModel[] {
   const declarations: DeclarationModel[] = [];
   const lines = source.split(/\r?\n/);
   const regex = /^\s*(Public|Private|Friend)?\s*Const\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:As\s+([A-Za-z_][A-Za-z0-9_.]*))?/i;
@@ -164,7 +170,7 @@ function parseConstantDeclarations(source: string): DeclarationModel[] {
   return declarations;
 }
 
-function procedureToEvent(procedure: ProcedureModel): EventModel | undefined {
+export function procedureToEvent(procedure: ProcedureModel): EventModel | undefined {
   const match = procedure.name.match(/^(.+)_([A-Za-z][A-Za-z0-9]*)$/);
   if (!match) return undefined;
   return {
@@ -174,7 +180,7 @@ function procedureToEvent(procedure: ProcedureModel): EventModel | undefined {
   };
 }
 
-function enrichProcedureCalls(modules: ModuleModel[], files: ExtractedFile[]) {
+export function enrichProcedureCalls(modules: ModuleModel[], files: ExtractedFile[]) {
   const procedureNames = new Set(modules.flatMap((module) => module.procedures.map((procedure) => procedure.name)));
 
   for (const module of modules) {
@@ -190,7 +196,7 @@ function enrichProcedureCalls(modules: ModuleModel[], files: ExtractedFile[]) {
   }
 }
 
-function enrichModuleReferences(modules: ModuleModel[], files: ExtractedFile[]) {
+export function enrichModuleReferences(modules: ModuleModel[], files: ExtractedFile[]) {
   for (const module of modules) {
     const source = files.find((file) => file.name === module.fileName)?.text ?? "";
     module.references = modules
@@ -201,7 +207,7 @@ function enrichModuleReferences(modules: ModuleModel[], files: ExtractedFile[]) 
   }
 }
 
-function detectRiskMarkers(source: string): RiskMarker[] {
+export function detectRiskMarkers(source: string): RiskMarker[] {
   const markers: RiskMarker[] = [];
   const checks: Array<{ category: string; reason: string; regex: RegExp }> = [
     { category: "TODO", reason: "Developer note may indicate incomplete or special-case logic.", regex: /\b(TODO|FIXME|HACK|XXX)\b/i },
@@ -224,7 +230,7 @@ function detectRiskMarkers(source: string): RiskMarker[] {
   return markers;
 }
 
-function detectProcedureUses(body: string) {
+export function detectProcedureUses(body: string) {
   const uses = new Set<string>();
   const checks: Array<[string, RegExp]> = [
     ["Excel object model", /\b(Application|Workbook|Worksheet|Range|Cells|Rows|Columns|Sheets|ActiveCell|Selection)\b/i],
@@ -243,11 +249,11 @@ function detectProcedureUses(body: string) {
   return [...uses].sort((a, b) => a.localeCompare(b));
 }
 
-function escapeRegExp(value: string) {
+export function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function buildFormModel(summary: DesignerSummary): FormModel {
+export function buildFormModel(summary: DesignerSummary): FormModel {
   return {
     name: summary.formName,
     properties: summary.frame,
@@ -255,7 +261,7 @@ function buildFormModel(summary: DesignerSummary): FormModel {
   };
 }
 
-function buildActiveXControls(files: ExtractedFile[]): ActiveXControlModel[] {
+export function buildActiveXControls(files: ExtractedFile[]): ActiveXControlModel[] {
   const activeXXmlFiles = files.filter((file) => /\/activeX\/activeX\d+\.xml$/i.test(file.sourcePath) && file.text);
   const activeXBinFiles = files.filter((file) => /\/activeX\/activeX\d+\.bin$/i.test(file.sourcePath));
 
@@ -285,7 +291,7 @@ function buildActiveXControls(files: ExtractedFile[]): ActiveXControlModel[] {
   });
 }
 
-function parseActiveXBinPersistence(binFile: ExtractedFile | undefined): ActiveXPersistenceAnalysis | undefined {
+export function parseActiveXBinPersistence(binFile: ExtractedFile | undefined): ActiveXPersistenceAnalysis | undefined {
   if (!binFile) return undefined;
   const bytes = binFile.bytes;
   const media = extractMediaFromBinary(bytes, safeFileName(binFile.name)).map((file) => ({
@@ -345,7 +351,7 @@ function parseActiveXBinPersistence(binFile: ExtractedFile | undefined): ActiveX
   }
 }
 
-function summarizeActiveXPersistenceStream(path: string, bytes: Uint8Array): ActiveXPersistenceStream {
+export function summarizeActiveXPersistenceStream(path: string, bytes: Uint8Array): ActiveXPersistenceStream {
   const strings = collectStrings(bytes).slice(0, 16).map((item) => labelPossibleIdentifier(item.value));
   const guids = collectGuids(bytes).slice(0, 16).map((item) => {
     const label = labelGuid(item.value);
@@ -364,7 +370,7 @@ function summarizeActiveXPersistenceStream(path: string, bytes: Uint8Array): Act
   };
 }
 
-function parseActiveXCompObjStream(bytes: Uint8Array): ActiveXPersistenceAnalysis["compObj"] {
+export function parseActiveXCompObjStream(bytes: Uint8Array): ActiveXPersistenceAnalysis["compObj"] {
   const strings = collectStrings(bytes).map((item) => item.value).filter(Boolean);
   const clsid = bytes.byteLength >= 28 ? formatGuid(bytes.subarray(12, 28)) : undefined;
   return {
@@ -375,7 +381,7 @@ function parseActiveXCompObjStream(bytes: Uint8Array): ActiveXPersistenceAnalysi
   };
 }
 
-function activeXCompObjProperties(compObj: NonNullable<ActiveXPersistenceAnalysis["compObj"]>, source: string): ActiveXPersistenceAnalysis["properties"] {
+export function activeXCompObjProperties(compObj: NonNullable<ActiveXPersistenceAnalysis["compObj"]>, source: string): ActiveXPersistenceAnalysis["properties"] {
   const properties: ActiveXPersistenceAnalysis["properties"] = [];
   if (compObj.clsid) {
     properties.push({
@@ -391,7 +397,7 @@ function activeXCompObjProperties(compObj: NonNullable<ActiveXPersistenceAnalysi
   return properties;
 }
 
-function inferActiveXContentsProperties(bytes: Uint8Array, source: string, userType: string | undefined): ActiveXPersistenceAnalysis["properties"] {
+export function inferActiveXContentsProperties(bytes: Uint8Array, source: string, userType: string | undefined): ActiveXPersistenceAnalysis["properties"] {
   const properties: ActiveXPersistenceAnalysis["properties"] = [];
   const strings = collectStrings(bytes).filter((item) => item.value.length > 1);
   if (bytes.byteLength >= 8) {
@@ -427,7 +433,7 @@ function inferActiveXContentsProperties(bytes: Uint8Array, source: string, userT
   return properties;
 }
 
-function describeActiveXPropertyMask(propMask: number, userType: string | undefined) {
+export function describeActiveXPropertyMask(propMask: number, userType: string | undefined) {
   const type = userType?.toLowerCase() ?? "";
   const generic = [
     { bit: 2, name: "Color/visual property" },
@@ -444,7 +450,7 @@ function describeActiveXPropertyMask(propMask: number, userType: string | undefi
   return generic.filter((flag) => (propMask & (1 << flag.bit)) !== 0).map((flag) => flag.name);
 }
 
-function findOleColorCandidates(bytes: Uint8Array) {
+export function findOleColorCandidates(bytes: Uint8Array) {
   const colors: Array<{ offset: number; name: string; value: string; confidence: "medium" | "low" }> = [];
   for (let offset = 0; offset + 4 <= bytes.length; offset += 4) {
     const value = readU32(bytes, offset);
@@ -458,7 +464,7 @@ function findOleColorCandidates(bytes: Uint8Array) {
   return colors;
 }
 
-function describeSystemOleColor(index: number) {
+export function describeSystemOleColor(index: number) {
   const labels: Record<number, string> = {
     0x00: "scrollbar",
     0x05: "window background",
@@ -471,7 +477,7 @@ function describeSystemOleColor(index: number) {
   return labels[index] ?? `system color ${index}`;
 }
 
-function parseActiveXXmlProperties(xml: string) {
+export function parseActiveXXmlProperties(xml: string) {
   const properties: Record<string, string> = {};
   const attrRegex = /(?:^|\s)([A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*"([^"]*)"/g;
   let match: RegExpExecArray | null;
@@ -492,14 +498,7 @@ function parseActiveXXmlProperties(xml: string) {
   return properties;
 }
 
-function normalizeGuidString(value: string | undefined) {
-  const match = value?.match(/\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?/i);
-  if (!match) return undefined;
-  const raw = match[0].replace(/[{}]/g, "").toUpperCase();
-  return `{${raw}}`;
-}
-
-function flattenControls(controls: DesignerControl[], parentPath?: string): FlatControlModel[] {
+export function flattenControls(controls: DesignerControl[], parentPath?: string): FlatControlModel[] {
   return controls.flatMap((control) => [
     {
       id: control.id,
@@ -517,7 +516,7 @@ function flattenControls(controls: DesignerControl[], parentPath?: string): Flat
   ]);
 }
 
-function linkEventsToControls(modules: ModuleModel[], forms: FormModel[]) {
+export function linkEventsToControls(modules: ModuleModel[], forms: FormModel[]) {
   const controls = forms.flatMap((form) => form.controls.map((control) => ({ form, control })));
   for (const module of modules) {
     for (const event of module.events) {
@@ -533,7 +532,7 @@ function linkEventsToControls(modules: ModuleModel[], forms: FormModel[]) {
   }
 }
 
-function addInferredEventControls(modules: ModuleModel[], forms: FormModel[]) {
+export function addInferredEventControls(modules: ModuleModel[], forms: FormModel[]) {
   for (const form of forms) {
     const module = modules.find((candidate) => candidate.name === form.name);
     if (!module) continue;
@@ -559,7 +558,7 @@ function addInferredEventControls(modules: ModuleModel[], forms: FormModel[]) {
   }
 }
 
-function inferControlTypeFromName(name: string) {
+export function inferControlTypeFromName(name: string) {
   const lower = name.toLowerCase();
   if (lower.startsWith("cmd") || lower.startsWith("btn") || lower.includes("button")) return "Inferred command button";
   if (lower.startsWith("chk") || lower.includes("checkbox")) return "Inferred checkbox";
@@ -571,11 +570,11 @@ function inferControlTypeFromName(name: string) {
   return "Inferred MSForms control";
 }
 
-function normalizeIdentifier(value: string) {
+export function normalizeIdentifier(value: string) {
   return value.replace(/\s+\(.+\)$/, "").replace(/[^a-z0-9_]/gi, "").toLowerCase();
 }
 
-function detectDependencies(modules: ModuleModel[], files: ExtractedFile[]): DependencyModel[] {
+export function detectDependencies(modules: ModuleModel[], files: ExtractedFile[]): DependencyModel[] {
   const dependencies: DependencyModel[] = [];
   const patterns: Array<{ category: string; reason: string; regex: RegExp }> = [
     { category: "WinAPI", reason: "Declare statement", regex: /\bDeclare\s+(PtrSafe\s+)?(Sub|Function)\s+([A-Za-z0-9_]+)/ig },
@@ -603,7 +602,7 @@ function detectDependencies(modules: ModuleModel[], files: ExtractedFile[]): Dep
   return uniqueDependencies(dependencies);
 }
 
-function uniqueDependencies(dependencies: DependencyModel[]) {
+export function uniqueDependencies(dependencies: DependencyModel[]) {
   const seen = new Set<string>();
   return dependencies.filter((dependency) => {
     const key = `${dependency.category}:${dependency.value}:${dependency.source}`;
@@ -613,7 +612,7 @@ function uniqueDependencies(dependencies: DependencyModel[]) {
   });
 }
 
-function renderApplicationSummary(model: ApplicationModel) {
+export function renderApplicationSummary(model: ApplicationModel) {
   const lines: string[] = [
     "# Application Migration Summary",
     "",
@@ -702,7 +701,7 @@ function renderApplicationSummary(model: ApplicationModel) {
   return `${lines.join("\n")}\n`;
 }
 
-function renderMigrationChecklist(model: ApplicationModel) {
+export function renderMigrationChecklist(model: ApplicationModel) {
   const riskMarkers = model.modules.flatMap((module) => module.riskMarkers.map((risk) => ({ module: module.name, ...risk })));
   const unlinkedEvents = model.modules.flatMap((module) => module.events.filter((event) => !event.linkedControlPath).map((event) => ({ module: module.name, ...event })));
   const globalState = model.modules.flatMap((module) =>
@@ -762,7 +761,7 @@ function renderMigrationChecklist(model: ApplicationModel) {
   return `${lines.join("\n")}\n`;
 }
 
-function renderCallGraph(model: ApplicationModel) {
+export function renderCallGraph(model: ApplicationModel) {
   const lines = [
     "# VBA Call Graph",
     "",
@@ -803,7 +802,7 @@ function renderCallGraph(model: ApplicationModel) {
   return `${lines.join("\n")}\n`;
 }
 
-function renderDependencyReport(model: ApplicationModel) {
+export function renderDependencyReport(model: ApplicationModel) {
   const lines = [
     "# Dependency Report",
     "",
@@ -838,7 +837,7 @@ function renderDependencyReport(model: ApplicationModel) {
   return `${lines.join("\n")}\n`;
 }
 
-function renderProjectReferencesReport(model: ApplicationModel) {
+export function renderProjectReferencesReport(model: ApplicationModel) {
   const lines = [
     "# VBA Project References",
     "",
@@ -877,11 +876,11 @@ function renderProjectReferencesReport(model: ApplicationModel) {
   return `${lines.join("\n")}\n`;
 }
 
-function titleCase(value: string) {
+export function titleCase(value: string) {
   return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 
-function renderFrontendImplementationPlan(model: ApplicationModel) {
+export function renderFrontendImplementationPlan(model: ApplicationModel) {
   const lines = [
     "# Frontend Implementation Plan",
     "",
@@ -947,7 +946,7 @@ function renderFrontendImplementationPlan(model: ApplicationModel) {
   return `${lines.join("\n")}\n`;
 }
 
-function buildLayoutModel(model: ApplicationModel) {
+export function buildLayoutModel(model: ApplicationModel) {
   return {
     generatedAt: model.generatedAt,
     units: "twips",
@@ -978,7 +977,7 @@ function buildLayoutModel(model: ApplicationModel) {
   };
 }
 
-function buildTraceabilityMap(files: ExtractedFile[], model: ApplicationModel) {
+export function buildTraceabilityMap(files: ExtractedFile[], model: ApplicationModel) {
   const fileEntries = files.map((file, index) => ({
     extractedName: file.name,
     kind: file.kind,
@@ -1042,7 +1041,7 @@ function buildTraceabilityMap(files: ExtractedFile[], model: ApplicationModel) {
   };
 }
 
-function renderValidationReport(files: ExtractedFile[], model: ApplicationModel) {
+export function renderValidationReport(files: ExtractedFile[], model: ApplicationModel) {
   const sourceFiles = files.filter((file) => file.kind === "vba" || file.kind === "frm");
   const fallbackFiles = sourceFiles.filter((file) => file.sourcePath.includes("recovered by scan"));
   const controls = model.forms.flatMap((form) => form.controls);
@@ -1141,13 +1140,13 @@ function renderValidationReport(files: ExtractedFile[], model: ApplicationModel)
   return `${lines.join("\n")}\n`;
 }
 
-function parseNumber(value: string | undefined) {
+export function parseNumber(value: string | undefined) {
   if (!value) return undefined;
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function mapControlToFrontend(control: FlatControlModel) {
+export function mapControlToFrontend(control: FlatControlModel) {
   const type = `${control.type ?? ""} ${control.progId ?? ""}`.toLowerCase();
   if (type.includes("commandbutton")) return "button";
   if (type.includes("checkbox")) return "checkbox";
@@ -1164,7 +1163,7 @@ function mapControlToFrontend(control: FlatControlModel) {
   return "custom component";
 }
 
-function renderMigrationTestPlan(model: ApplicationModel) {
+export function renderMigrationTestPlan(model: ApplicationModel) {
   const lines = [
     "# Migration Test Plan",
     "",
@@ -1218,15 +1217,15 @@ function renderMigrationTestPlan(model: ApplicationModel) {
   return `${lines.join("\n")}\n`;
 }
 
-function graphNodeId(value: string) {
+export function graphNodeId(value: string) {
   return `n_${value.replace(/[^a-z0-9_]/gi, "_")}`;
 }
 
-function escapeMermaidLabel(value: string) {
+export function escapeMermaidLabel(value: string) {
   return value.replace(/"/g, "'");
 }
 
-function groupBy<T>(items: T[], keyFn: (item: T) => string) {
+export function groupBy<T>(items: T[], keyFn: (item: T) => string) {
   const grouped = new Map<string, T[]>();
   for (const item of items) {
     const key = keyFn(item);

@@ -24,7 +24,7 @@ npm install
 npm run dev
 ```
 
-Vite serves the app locally and loads `src/main.ts` as the entrypoint. The source is split into focused TypeScript files under `src/`; `vite.config.js` combines them through a virtual module so the browser app still runs as one bundled application in production.
+Vite serves the app locally and loads `src/main.ts` as the entrypoint. The source is split into focused ES modules under `src/`, and Vite bundles/minifies them for production.
 
 No generated JavaScript is committed.
 

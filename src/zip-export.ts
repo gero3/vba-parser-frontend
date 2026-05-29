@@ -1,4 +1,10 @@
-function createZip(files: ExtractedFile[]) {
+import type { ApplicationModel, ExtractedFile } from "./types";
+import { concatBytes, encodeText, safeFileName, writeU16, writeU32 } from "./runtime";
+import { buildResultGroups, getResultOwner } from "./results-ui";
+import { buildApplicationModel, buildLayoutModel, buildTraceabilityMap, renderApplicationSummary, renderCallGraph, renderDependencyReport, renderFrontendImplementationPlan, renderMigrationChecklist, renderMigrationTestPlan, renderProjectReferencesReport, renderValidationReport } from "./model";
+import { createVisualPreviewArtifacts, renderLlmRebuildBrief } from "./designer-ui";
+
+export function createZip(files: ExtractedFile[]) {
   const groups = buildResultGroups(files);
   const appModel = buildApplicationModel(files, groups);
   const appSummary = renderApplicationSummary(appModel);
@@ -105,13 +111,13 @@ function createZip(files: ExtractedFile[]) {
   return concatBytes([...localParts, ...centralParts, end]);
 }
 
-function getZipPath(file: ExtractedFile, index: number) {
+export function getZipPath(file: ExtractedFile, index: number) {
   const owner = safeFileName(getResultOwner(file));
   const category = file.kind === "media" ? "media" : file.kind === "frx" ? "resources" : file.kind === "frm" || file.kind === "vba" ? "code" : /office-package-manifest|\/(word|xl|ppt)\//i.test(file.sourcePath) ? "office-package" : "other";
   return `${owner}/${category}/${String(index + 1).padStart(3, "0")}-${safeFileName(file.name)}`;
 }
 
-function createProcedureZipEntries(files: ExtractedFile[], model: ApplicationModel) {
+export function createProcedureZipEntries(files: ExtractedFile[], model: ApplicationModel) {
   const entries: Array<{ path: string; bytes: Uint8Array; crc: number }> = [];
 
   for (const module of model.modules) {
@@ -144,13 +150,13 @@ function createProcedureZipEntries(files: ExtractedFile[], model: ApplicationMod
   return entries;
 }
 
-function crc32(bytes: Uint8Array) {
+export function crc32(bytes: Uint8Array) {
   let crc = 0xffffffff;
   for (const byte of bytes) crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff];
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function makeCrc32Table() {
+export function makeCrc32Table() {
   const table: number[] = [];
   for (let i = 0; i < 256; i += 1) {
     let value = i;
@@ -160,9 +166,9 @@ function makeCrc32Table() {
   return table;
 }
 
-const CRC32_TABLE = makeCrc32Table();
+export const CRC32_TABLE = makeCrc32Table();
 
-function getDosDateTime(date: Date) {
+export function getDosDateTime(date: Date) {
   const year = Math.max(1980, date.getFullYear());
   return {
     time: (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2),

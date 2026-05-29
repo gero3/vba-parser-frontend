@@ -1,4 +1,8 @@
-async function extractOffice(bytes: Uint8Array, fileName: string): Promise<ExtractedFile[]> {
+import { CLSID_STD_PICTURE, DIFAT_SECTOR, END_OF_CHAIN, FAT_SECTOR, FREE_SECTOR } from "./types";
+import type { BinaryAnalysis, DirModule, DirectoryEntry, ExtractedFile, ExtractedString, MediaMatch, OFormsAnalysis, ProjectModule, ProjectReferenceModel, ZipEntry } from "./types";
+import { concatBytes, decodeText, decodeUtf16Le, encodeText, findBytes, findEndOfCentralDirectory, formatBytes, formatGuid, getSector, isHumanLabel, isOle, isZip, kindRank, matches, matchesAscii, normalizeGuidString, readI32, readU16, readU32, safeFileName, toHex, writeU32 } from "./runtime";
+
+export async function extractOffice(bytes: Uint8Array, fileName: string): Promise<ExtractedFile[]> {
   const raw = extractRawVbaOrFormFile(bytes, fileName);
   if (raw) return raw;
 
@@ -23,7 +27,7 @@ async function extractOffice(bytes: Uint8Array, fileName: string): Promise<Extra
   throw new Error("This does not look like a supported Office zip or legacy OLE document.");
 }
 
-function extractRawVbaOrFormFile(bytes: Uint8Array, fileName: string): ExtractedFile[] | undefined {
+export function extractRawVbaOrFormFile(bytes: Uint8Array, fileName: string): ExtractedFile[] | undefined {
   const extension = fileName.split(".").at(-1)?.toLowerCase();
   if (!extension || !["bas", "cls", "frm", "frx"].includes(extension)) return undefined;
 
@@ -51,7 +55,7 @@ function extractRawVbaOrFormFile(bytes: Uint8Array, fileName: string): Extracted
   }];
 }
 
-function extractVbaProject(bytes: Uint8Array, sourcePath: string): ExtractedFile[] {
+export function extractVbaProject(bytes: Uint8Array, sourcePath: string): ExtractedFile[] {
   const cfb = parseCfb(bytes);
   const projectStream = cfb.streams.get("PROJECT") ?? cfb.streams.get("VBA/PROJECT");
   const dirStream = cfb.streams.get("VBA/dir") ?? cfb.streams.get("dir");
@@ -157,7 +161,7 @@ function extractVbaProject(bytes: Uint8Array, sourcePath: string): ExtractedFile
   return files.sort((a, b) => kindRank(a.kind) - kindRank(b.kind) || a.name.localeCompare(b.name));
 }
 
-async function extractOfficePackageParts(bytes: Uint8Array, zipEntries: ZipEntry[], fileName: string): Promise<ExtractedFile[]> {
+export async function extractOfficePackageParts(bytes: Uint8Array, zipEntries: ZipEntry[], fileName: string): Promise<ExtractedFile[]> {
   const interesting = zipEntries.filter((entry) =>
     /^word\/media\//i.test(entry.name) ||
     /^ppt\/media\//i.test(entry.name) ||
@@ -208,21 +212,21 @@ async function extractOfficePackageParts(bytes: Uint8Array, zipEntries: ZipEntry
   return extracted;
 }
 
-function classifyOfficePart(path: string) {
+export function classifyOfficePart(path: string) {
   if (/\/media\//i.test(path)) return "media";
   if (/\.xml$/i.test(path)) return "xml";
   if (/\/activeX\//i.test(path)) return "activex";
   return "binary";
 }
 
-function describeOfficePart(path: string, bytes: Uint8Array) {
+export function describeOfficePart(path: string, bytes: Uint8Array) {
   if (/\/activeX\//i.test(path)) return "ActiveX control package part";
   if (/\/media\//i.test(path)) return "Office document media asset";
   if (isOle(bytes)) return "Embedded OLE compound file";
   return "Office embedded package part";
 }
 
-function mimeTypeForOfficePart(path: string) {
+export function mimeTypeForOfficePart(path: string) {
   const lower = path.toLowerCase();
   if (lower.endsWith(".xml")) return "application/xml";
   if (lower.endsWith(".png")) return "image/png";
@@ -234,7 +238,7 @@ function mimeTypeForOfficePart(path: string) {
   return "application/octet-stream";
 }
 
-function parseProjectModules(projectStream?: Uint8Array) {
+export function parseProjectModules(projectStream?: Uint8Array) {
   const modules = new Map<string, ProjectModule>();
   if (!projectStream) return modules;
 
@@ -256,7 +260,7 @@ function parseProjectModules(projectStream?: Uint8Array) {
   return modules;
 }
 
-function parseProjectReferences(projectStream?: Uint8Array, dirStream?: Uint8Array): ProjectReferenceModel[] {
+export function parseProjectReferences(projectStream?: Uint8Array, dirStream?: Uint8Array): ProjectReferenceModel[] {
   const references = [...parseProjectStreamReferences(projectStream), ...parseDirProjectReferences(dirStream)];
   const seen = new Set<string>();
   return references.filter((reference) => {
@@ -267,7 +271,7 @@ function parseProjectReferences(projectStream?: Uint8Array, dirStream?: Uint8Arr
   });
 }
 
-function parseProjectStreamReferences(projectStream?: Uint8Array): ProjectReferenceModel[] {
+export function parseProjectStreamReferences(projectStream?: Uint8Array): ProjectReferenceModel[] {
   if (!projectStream) return [];
   const references: ProjectReferenceModel[] = [];
   const text = decodeText(projectStream);
@@ -296,7 +300,7 @@ function parseProjectStreamReferences(projectStream?: Uint8Array): ProjectRefere
   return references;
 }
 
-function parseDirProjectReferences(dirStream?: Uint8Array): ProjectReferenceModel[] {
+export function parseDirProjectReferences(dirStream?: Uint8Array): ProjectReferenceModel[] {
   if (!dirStream) return [];
   let dir: Uint8Array;
   try {
@@ -376,7 +380,7 @@ function parseDirProjectReferences(dirStream?: Uint8Array): ProjectReferenceMode
   return references;
 }
 
-function parseReferenceNameRecord(payload: Uint8Array) {
+export function parseReferenceNameRecord(payload: Uint8Array) {
   if (payload.length < 6) return cleanReferenceText(decodeText(payload));
   const size = readU32(payload, 0);
   if (size > 0 && size <= payload.length - 4) {
@@ -394,7 +398,7 @@ function parseReferenceNameRecord(payload: Uint8Array) {
   return cleanReferenceText(decodeText(payload));
 }
 
-function readReferenceNameRecord(bytes: Uint8Array, cursor: number) {
+export function readReferenceNameRecord(bytes: Uint8Array, cursor: number) {
   if (cursor + 6 > bytes.length || readU16(bytes, cursor) !== 0x0016) return undefined;
   const sizeOfName = readU32(bytes, cursor + 2);
   const nameStart = cursor + 6;
@@ -413,7 +417,7 @@ function readReferenceNameRecord(bytes: Uint8Array, cursor: number) {
   };
 }
 
-function parseDirReferenceRecord(id: number, payload: Uint8Array) {
+export function parseDirReferenceRecord(id: number, payload: Uint8Array) {
   if (id === 0x000d) {
     const libId = parseReferenceLibIdRecord(payload, "length-prefixed");
     return { libId, ...parseLibId(libId) };
@@ -434,7 +438,7 @@ function parseDirReferenceRecord(id: number, payload: Uint8Array) {
   return { libId, ...parseLibId(libId) };
 }
 
-function parseReferenceLibIdRecord(payload: Uint8Array, mode: "direct" | "length-prefixed") {
+export function parseReferenceLibIdRecord(payload: Uint8Array, mode: "direct" | "length-prefixed") {
   let raw = "";
   if (mode === "length-prefixed" && payload.length >= 4) {
     const size = readU32(payload, 0);
@@ -445,26 +449,26 @@ function parseReferenceLibIdRecord(payload: Uint8Array, mode: "direct" | "length
   return cleaned || undefined;
 }
 
-function classifyDirReferenceRecord(id: number): ProjectReferenceModel["kind"] {
+export function classifyDirReferenceRecord(id: number): ProjectReferenceModel["kind"] {
   if (id === 0x002f || id === 0x0030) return "control";
   if (id === 0x000d) return "registered";
   if (id === 0x000e) return "project";
   return "unknown";
 }
 
-function inferReferenceName(value: string) {
+export function inferReferenceName(value: string) {
   const parts = value.split("#").map((part) => part.trim()).filter(Boolean);
   const candidate = parts.find((part) => /^[A-Za-z_][A-Za-z0-9_. -]*$/.test(part) && !/^\d+\.\d+$/.test(part));
   return candidate;
 }
 
-function normalizeReferenceLibId(value: string) {
+export function normalizeReferenceLibId(value: string) {
   const marker = value.search(/\*?\\G\{/i);
   const normalized = marker >= 0 ? value.slice(marker) : value;
   return normalized.replace(/[^\x20-\x7e]+$/g, "").trim();
 }
 
-function parseLibId(value: string | undefined) {
+export function parseLibId(value: string | undefined) {
   if (!value) return {};
   const parts = value.split("#");
   return {
@@ -473,15 +477,15 @@ function parseLibId(value: string | undefined) {
   };
 }
 
-function cleanReferenceText(value: string) {
+export function cleanReferenceText(value: string) {
   return value.replace(/\0/g, "").replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]+/g, "").trim();
 }
 
-function byteLength(value: string) {
+export function byteLength(value: string) {
   return encodeText(value).byteLength;
 }
 
-function parseDirModules(dirStream?: Uint8Array): DirModule[] {
+export function parseDirModules(dirStream?: Uint8Array): DirModule[] {
   if (!dirStream) return [];
 
   let dir: Uint8Array;
@@ -517,7 +521,7 @@ function parseDirModules(dirStream?: Uint8Array): DirModule[] {
   }
 }
 
-function findProjectModulesRecord(dir: Uint8Array) {
+export function findProjectModulesRecord(dir: Uint8Array) {
   for (let offset = 0; offset + 16 <= dir.length; offset += 1) {
     if (readU16(dir, offset) !== 0x000f || readU32(dir, offset + 2) !== 0x00000002) continue;
     const count = readU16(dir, offset + 6);
@@ -529,7 +533,7 @@ function findProjectModulesRecord(dir: Uint8Array) {
   return -1;
 }
 
-function readDirModule(dir: Uint8Array, start: number) {
+export function readDirModule(dir: Uint8Array, start: number) {
   let cursor = start;
 
   const nameRecord = readRecord(dir, cursor);
@@ -592,7 +596,7 @@ function readDirModule(dir: Uint8Array, start: number) {
   };
 }
 
-function readRecord(bytes: Uint8Array, offset: number) {
+export function readRecord(bytes: Uint8Array, offset: number) {
   if (offset + 6 > bytes.length) throw new Error("Record is out of bounds.");
   const id = readU16(bytes, offset);
   const size = readU32(bytes, offset + 2);
@@ -602,7 +606,7 @@ function readRecord(bytes: Uint8Array, offset: number) {
   return { id, size, payload: bytes.subarray(payloadStart, next), next };
 }
 
-function findVbaModuleStream(streams: Map<string, Uint8Array>, streamName: string): [string, Uint8Array] | undefined {
+export function findVbaModuleStream(streams: Map<string, Uint8Array>, streamName: string): [string, Uint8Array] | undefined {
   const wanted = `vba/${streamName}`.toLowerCase();
   for (const entry of streams) {
     if (entry[0].toLowerCase() === wanted) return entry;
@@ -610,7 +614,7 @@ function findVbaModuleStream(streams: Map<string, Uint8Array>, streamName: strin
   return undefined;
 }
 
-function createSourceFile(input: { moduleName: string; moduleType: ProjectModule["type"]; source: string; sourcePath: string }): ExtractedFile {
+export function createSourceFile(input: { moduleName: string; moduleType: ProjectModule["type"]; source: string; sourcePath: string }): ExtractedFile {
   const extension = input.moduleType === "form" ? "frm" : input.moduleType === "class" ? "cls" : "bas";
   return {
     name: `${input.moduleName}.${extension}`,
@@ -622,7 +626,7 @@ function createSourceFile(input: { moduleName: string; moduleType: ProjectModule
   };
 }
 
-function extractVbaTextAtOffset(stream: Uint8Array, offset: number) {
+export function extractVbaTextAtOffset(stream: Uint8Array, offset: number) {
   if (offset < 0 || offset >= stream.length) return undefined;
   try {
     return decodeText(decompressVba(stream.subarray(offset))).replace(/\0+$/g, "");
@@ -631,7 +635,7 @@ function extractVbaTextAtOffset(stream: Uint8Array, offset: number) {
   }
 }
 
-function extractBestVbaText(stream: Uint8Array): string | undefined {
+export function extractBestVbaText(stream: Uint8Array): string | undefined {
   let best = "";
   let bestScore = 0;
   for (let offset = 0; offset < stream.byteLength; offset += 1) {
@@ -651,7 +655,7 @@ function extractBestVbaText(stream: Uint8Array): string | undefined {
   return bestScore > 8 ? best.replace(/\0+$/g, "") : undefined;
 }
 
-function decompressVba(container: Uint8Array): Uint8Array {
+export function decompressVba(container: Uint8Array): Uint8Array {
   if (container[0] !== 0x01) throw new Error("Invalid compressed VBA container signature.");
 
   const output: number[] = [];
@@ -705,7 +709,7 @@ function decompressVba(container: Uint8Array): Uint8Array {
   return new Uint8Array(output);
 }
 
-function scoreVbaText(text: string) {
+export function scoreVbaText(text: string) {
   let score = 0;
   if (/Attribute\s+VB_Name/i.test(text)) score += 50;
   if (/\b(Sub|Function|Property|Option|Dim|Private|Public|End)\b/i.test(text)) score += 20;
@@ -719,7 +723,7 @@ function scoreVbaText(text: string) {
   return score + printable / Math.max(text.length, 1);
 }
 
-function extractMediaFromBinary(bytes: Uint8Array, baseName: string): ExtractedFile[] {
+export function extractMediaFromBinary(bytes: Uint8Array, baseName: string): ExtractedFile[] {
   const found: ExtractedFile[] = [];
   const seen = new Set<string>();
 
@@ -751,7 +755,7 @@ function extractMediaFromBinary(bytes: Uint8Array, baseName: string): ExtractedF
   return found;
 }
 
-function extractNestedOleMedia(bytes: Uint8Array, baseName: string, startIndex: number) {
+export function extractNestedOleMedia(bytes: Uint8Array, baseName: string, startIndex: number) {
   const found: ExtractedFile[] = [];
 
   for (let offset = 0; offset + 8 <= bytes.length; offset += 1) {
@@ -778,7 +782,7 @@ function extractNestedOleMedia(bytes: Uint8Array, baseName: string, startIndex: 
   return found;
 }
 
-function detectMedia(bytes: Uint8Array, offset: number): MediaMatch | undefined {
+export function detectMedia(bytes: Uint8Array, offset: number): MediaMatch | undefined {
   const guidAndPicture = detectGuidAndPicture(bytes, offset);
   if (guidAndPicture) return guidAndPicture;
 
@@ -849,7 +853,7 @@ function detectMedia(bytes: Uint8Array, offset: number): MediaMatch | undefined 
   return undefined;
 }
 
-function detectGuidAndPicture(bytes: Uint8Array, offset: number): MediaMatch | undefined {
+export function detectGuidAndPicture(bytes: Uint8Array, offset: number): MediaMatch | undefined {
   if (!matches(bytes, offset, CLSID_STD_PICTURE)) return undefined;
   const picture = detectStdPicture(bytes, offset + 16);
   if (!picture) return undefined;
@@ -860,7 +864,7 @@ function detectGuidAndPicture(bytes: Uint8Array, offset: number): MediaMatch | u
   };
 }
 
-function detectStdPicture(bytes: Uint8Array, offset: number): MediaMatch | undefined {
+export function detectStdPicture(bytes: Uint8Array, offset: number): MediaMatch | undefined {
   if (offset + 8 > bytes.length || readU32(bytes, offset) !== 0x0000746c) return undefined;
 
   const size = readU32(bytes, offset + 4);
@@ -887,7 +891,7 @@ function detectStdPicture(bytes: Uint8Array, offset: number): MediaMatch | undef
   };
 }
 
-function decodePicturePayload(payload: Uint8Array): Omit<MediaMatch, "length"> | undefined {
+export function decodePicturePayload(payload: Uint8Array): Omit<MediaMatch, "length"> | undefined {
   const direct = detectDirectImagePayload(payload);
   if (direct) return direct;
 
@@ -922,7 +926,7 @@ function decodePicturePayload(payload: Uint8Array): Omit<MediaMatch, "length"> |
   return undefined;
 }
 
-function detectDirectImagePayload(payload: Uint8Array): Omit<MediaMatch, "length"> | undefined {
+export function detectDirectImagePayload(payload: Uint8Array): Omit<MediaMatch, "length"> | undefined {
   const media = detectMediaWithoutOFormsWrappers(payload, 0);
   if (!media) return undefined;
   return {
@@ -933,7 +937,7 @@ function detectDirectImagePayload(payload: Uint8Array): Omit<MediaMatch, "length
   };
 }
 
-function detectMediaWithoutOFormsWrappers(bytes: Uint8Array, offset: number): MediaMatch | undefined {
+export function detectMediaWithoutOFormsWrappers(bytes: Uint8Array, offset: number): MediaMatch | undefined {
   if (matches(bytes, offset, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
     const end = findBytes(bytes, [0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82], offset + 8);
     if (end > -1) return { extension: "png", mimeType: "image/png", length: end + 8 - offset, label: "PNG image" };
@@ -979,7 +983,7 @@ function detectMediaWithoutOFormsWrappers(bytes: Uint8Array, offset: number): Me
   return undefined;
 }
 
-function findNextLikelyMedia(bytes: Uint8Array, start: number) {
+export function findNextLikelyMedia(bytes: Uint8Array, start: number) {
   for (let offset = start; offset < bytes.length; offset += 1) {
     if (
       matches(bytes, offset, [0x89, 0x50, 0x4e, 0x47]) ||
@@ -993,7 +997,7 @@ function findNextLikelyMedia(bytes: Uint8Array, start: number) {
   return -1;
 }
 
-function detectIconOrCursor(bytes: Uint8Array, offset: number): MediaMatch | undefined {
+export function detectIconOrCursor(bytes: Uint8Array, offset: number): MediaMatch | undefined {
   if (offset + 6 >= bytes.length || readU16(bytes, offset) !== 0 || ![1, 2].includes(readU16(bytes, offset + 2))) {
     return undefined;
   }
@@ -1015,7 +1019,7 @@ function detectIconOrCursor(bytes: Uint8Array, offset: number): MediaMatch | und
   return { extension: isIcon ? "ico" : "cur", mimeType: "image/x-icon", length, label: isIcon ? "ICO icon" : "CUR cursor" };
 }
 
-function isStandardWmf(bytes: Uint8Array, offset: number) {
+export function isStandardWmf(bytes: Uint8Array, offset: number) {
   if (offset + 18 > bytes.length) return false;
   const fileType = readU16(bytes, offset);
   const headerSizeWords = readU16(bytes, offset + 2);
@@ -1024,11 +1028,11 @@ function isStandardWmf(bytes: Uint8Array, offset: number) {
   return [1, 2].includes(fileType) && headerSizeWords === 9 && windowsVersion >= 0x0100 && fileSizeWords > 9 && offset + fileSizeWords * 2 <= bytes.length;
 }
 
-function isLikelyEmf(bytes: Uint8Array, offset: number) {
+export function isLikelyEmf(bytes: Uint8Array, offset: number) {
   return readU32(bytes, offset) === 1 && offset + 88 < bytes.length && matchesAscii(bytes, offset + 40, " EMF");
 }
 
-function analyzeBinaryStream(bytes: Uint8Array, path: string): BinaryAnalysis {
+export function analyzeBinaryStream(bytes: Uint8Array, path: string): BinaryAnalysis {
   const signatures = collectSignatures(bytes);
   const strings = collectStrings(bytes);
   const guids = collectGuids(bytes);
@@ -1059,7 +1063,7 @@ function analyzeBinaryStream(bytes: Uint8Array, path: string): BinaryAnalysis {
   };
 }
 
-function describeFormStream(path: string) {
+export function describeFormStream(path: string) {
   const name = path.split("/").at(-1) ?? path;
   if (name === "f") return "Form/control properties stream";
   if (name === "o") return "Object/property data stream";
@@ -1071,11 +1075,11 @@ function describeFormStream(path: string) {
   return "Binary form resource stream";
 }
 
-function printableStreamName(value: string) {
+export function printableStreamName(value: string) {
   return value.replace(/\x01/g, "0x01 ").replace(/\x03/g, "0x03 ");
 }
 
-function collectSignatures(bytes: Uint8Array) {
+export function collectSignatures(bytes: Uint8Array) {
   const signatures: BinaryAnalysis["signatures"] = [];
   for (let offset = 0; offset < bytes.length; offset += 1) {
     if (readU32(bytes, offset) === 0x0000746c && offset + 8 <= bytes.length) {
@@ -1105,7 +1109,7 @@ function collectSignatures(bytes: Uint8Array) {
   return signatures;
 }
 
-function collectStrings(bytes: Uint8Array): ExtractedString[] {
+export function collectStrings(bytes: Uint8Array): ExtractedString[] {
   const strings: ExtractedString[] = [];
   const ascii = /[\x20-\x7e]{4,}/g;
   const asciiText = Array.from(bytes, (byte) => (byte >= 0x20 && byte <= 0x7e ? String.fromCharCode(byte) : "\n")).join("");
@@ -1134,7 +1138,7 @@ function collectStrings(bytes: Uint8Array): ExtractedString[] {
     .sort((a, b) => a.offset - b.offset);
 }
 
-function collectGuids(bytes: Uint8Array) {
+export function collectGuids(bytes: Uint8Array) {
   const guids: BinaryAnalysis["guids"] = [];
   for (let offset = 0; offset + 16 <= bytes.length; offset += 1) {
     const chunk = bytes.subarray(offset, offset + 16);
@@ -1152,16 +1156,16 @@ function collectGuids(bytes: Uint8Array) {
   return guids;
 }
 
-function labelGuid(guid: string) {
+export function labelGuid(guid: string) {
   return KNOWN_GUID_LABELS[guid.toUpperCase()];
 }
 
-function labelProgId(value: string) {
+export function labelProgId(value: string) {
   const normalized = value.trim();
   return KNOWN_PROGID_LABELS[normalized.toLowerCase()];
 }
 
-function labelPossibleIdentifier(value: string) {
+export function labelPossibleIdentifier(value: string) {
   const progLabel = labelProgId(value);
   if (progLabel) return `${value} (${progLabel})`;
 
@@ -1175,7 +1179,7 @@ function labelPossibleIdentifier(value: string) {
   return value;
 }
 
-function parseOFormsStream(bytes: Uint8Array, path: string, strings: ExtractedString[]): OFormsAnalysis | undefined {
+export function parseOFormsStream(bytes: Uint8Array, path: string, strings: ExtractedString[]): OFormsAnalysis | undefined {
   const streamName = path.split("/").at(-1) ?? path;
 
   if (streamName === "f") {
@@ -1231,7 +1235,7 @@ function parseOFormsStream(bytes: Uint8Array, path: string, strings: ExtractedSt
   return undefined;
 }
 
-function parseOFormsControlRecord(bytes: Uint8Array, offset: number, type: string, maskKind: "form" | "site" | "generic", strings: ExtractedString[]) {
+export function parseOFormsControlRecord(bytes: Uint8Array, offset: number, type: string, maskKind: "form" | "site" | "generic", strings: ExtractedString[]) {
   if (offset + 8 > bytes.length) return undefined;
   const minor = bytes[offset];
   const major = bytes[offset + 1];
@@ -1259,7 +1263,7 @@ function parseOFormsControlRecord(bytes: Uint8Array, offset: number, type: strin
   };
 }
 
-function scanOFormsObjectRecords(bytes: Uint8Array, strings: ExtractedString[]) {
+export function scanOFormsObjectRecords(bytes: Uint8Array, strings: ExtractedString[]) {
   const records: OFormsAnalysis["records"] = [];
   for (let offset = 0; offset + 8 <= bytes.length; offset += 1) {
     const record = parseOFormsControlRecord(bytes, offset, offset === 0 ? "OleSiteConcrete control" : "Nested OleSite/control record", "site", strings);
@@ -1271,7 +1275,7 @@ function scanOFormsObjectRecords(bytes: Uint8Array, strings: ExtractedString[]) 
   return records;
 }
 
-function parseOFormsExtendedStream(bytes: Uint8Array): OFormsAnalysis | undefined {
+export function parseOFormsExtendedStream(bytes: Uint8Array): OFormsAnalysis | undefined {
   if (bytes.byteLength < 8) return undefined;
   const records: OFormsAnalysis["records"] = [];
   for (let offset = 0; offset + 8 <= bytes.length; offset += 8) {
@@ -1293,7 +1297,7 @@ function parseOFormsExtendedStream(bytes: Uint8Array): OFormsAnalysis | undefine
   };
 }
 
-function parseCompObjStream(bytes: Uint8Array): OFormsAnalysis {
+export function parseCompObjStream(bytes: Uint8Array): OFormsAnalysis {
   const strings = collectStrings(bytes);
   return {
     kind: "COM compound object",
@@ -1308,12 +1312,12 @@ function parseCompObjStream(bytes: Uint8Array): OFormsAnalysis {
   };
 }
 
-function decodeMaskFlags(mask: number, kind: "form" | "site" | "generic") {
+export function decodeMaskFlags(mask: number, kind: "form" | "site" | "generic") {
   const flags = kind === "form" ? FORM_PROP_FLAGS : kind === "site" ? SITE_PROP_FLAGS : GENERIC_CONTROL_FLAGS;
   return flags.filter((flag) => (mask & (1 << flag.bit)) !== 0).map((flag) => flag.name);
 }
 
-function decodeCommonOFormsValues(
+export function decodeCommonOFormsValues(
   bytes: Uint8Array,
   offset: number,
   end: number,
@@ -1355,7 +1359,7 @@ function decodeCommonOFormsValues(
   return properties;
 }
 
-function decodeOFormsLayoutProperties(bytes: Uint8Array, offset: number, end: number, propMask: number, maskKind: "form" | "site" | "generic") {
+export function decodeOFormsLayoutProperties(bytes: Uint8Array, offset: number, end: number, propMask: number, maskKind: "form" | "site" | "generic") {
   const properties: Array<{ name: string; value: string }> = [];
   if (maskKind === "form") {
     const sizes = findFmSizeCandidates(bytes, offset + 8, end);
@@ -1380,7 +1384,7 @@ function decodeOFormsLayoutProperties(bytes: Uint8Array, offset: number, end: nu
   return properties;
 }
 
-function decodeOrderedOFormsStringProperties(
+export function decodeOrderedOFormsStringProperties(
   propMask: number,
   maskKind: "form" | "site" | "generic",
   recordStrings: ExtractedString[],
@@ -1427,7 +1431,7 @@ function decodeOrderedOFormsStringProperties(
   return properties;
 }
 
-function isUsefulDecodedPropertyString(value: string) {
+export function isUsefulDecodedPropertyString(value: string) {
   if (!value || value.length > 160) return false;
   if (/^Tahoma$/i.test(value)) return false;
   if (/^[-=]{5,}$/.test(value)) return false;
@@ -1436,7 +1440,7 @@ function isUsefulDecodedPropertyString(value: string) {
   return true;
 }
 
-function findFmSizeCandidates(bytes: Uint8Array, start: number, end: number) {
+export function findFmSizeCandidates(bytes: Uint8Array, start: number, end: number) {
   const candidates: Array<{ offset: number; width: number; height: number; confidence: "medium" | "low" }> = [];
   for (let offset = start; offset + 8 <= end; offset += 4) {
     const width = readU32(bytes, offset);
@@ -1450,13 +1454,13 @@ function findFmSizeCandidates(bytes: Uint8Array, start: number, end: number) {
   return candidates;
 }
 
-function selectFormSizeCandidate(candidates: Array<{ offset: number; width: number; height: number; confidence: "medium" | "low" }>) {
+export function selectFormSizeCandidate(candidates: Array<{ offset: number; width: number; height: number; confidence: "medium" | "low" }>) {
   return candidates
     .filter((candidate) => candidate.confidence !== "low")
     .sort((a, b) => b.width * b.height - a.width * a.height)[0] ?? candidates.sort((a, b) => b.width * b.height - a.width * a.height)[0];
 }
 
-function findFmPositionCandidates(bytes: Uint8Array, start: number, end: number) {
+export function findFmPositionCandidates(bytes: Uint8Array, start: number, end: number) {
   const candidates: Array<{ offset: number; left: number; top: number; confidence: "medium" | "low" }> = [];
   for (let offset = start; offset + 8 <= end; offset += 4) {
     const left = readU32(bytes, offset);
@@ -1469,28 +1473,28 @@ function findFmPositionCandidates(bytes: Uint8Array, start: number, end: number)
   return candidates;
 }
 
-function selectSitePositionCandidate(candidates: Array<{ offset: number; left: number; top: number; confidence: "medium" | "low" }>) {
+export function selectSitePositionCandidate(candidates: Array<{ offset: number; left: number; top: number; confidence: "medium" | "low" }>) {
   return candidates
     .filter((candidate) => candidate.confidence !== "low")
     .sort((a, b) => scorePositionCandidate(b) - scorePositionCandidate(a))[0] ?? candidates[0];
 }
 
-function scorePositionCandidate(candidate: { left: number; top: number; confidence: "medium" | "low" }) {
+export function scorePositionCandidate(candidate: { left: number; top: number; confidence: "medium" | "low" }) {
   let score = candidate.confidence === "medium" ? 3 : 0;
   if (candidate.left > 0 || candidate.top > 0) score += 1;
   if (candidate.left < 10_000 && candidate.top < 10_000) score += 1;
   return score;
 }
 
-function formatSizeHint(size: { offset: number; width: number; height: number; confidence: string }) {
+export function formatSizeHint(size: { offset: number; width: number; height: number; confidence: string }) {
   return `${size.width} x ${size.height} twips @ ${toHex(size.offset)} (${size.confidence})`;
 }
 
-function formatPositionHint(position: { offset: number; left: number; top: number; confidence: string }) {
+export function formatPositionHint(position: { offset: number; left: number; top: number; confidence: string }) {
   return `${position.left}, ${position.top} twips @ ${toHex(position.offset)} (${position.confidence})`;
 }
 
-function guessExtraDataStart(bytes: Uint8Array, offset: number, end: number, propMask: number, flags: Array<{ bit: number; name: string }>) {
+export function guessExtraDataStart(bytes: Uint8Array, offset: number, end: number, propMask: number, flags: Array<{ bit: number; name: string }>) {
   const firstRecordString = collectStrings(bytes.subarray(offset, end))
     .map((item) => item.offset + offset)
     .filter((stringOffset) => stringOffset >= offset + 8)
@@ -1502,7 +1506,7 @@ function guessExtraDataStart(bytes: Uint8Array, offset: number, end: number, pro
   return hasExtra ? Math.max(offset + 8, end - 24) : -1;
 }
 
-function findStdPicture(bytes: Uint8Array, start: number) {
+export function findStdPicture(bytes: Uint8Array, start: number) {
   for (let offset = start; offset + 8 <= bytes.length; offset += 1) {
     if (readU32(bytes, offset) !== 0x0000746c) continue;
     const size = readU32(bytes, offset + 4);
@@ -1511,7 +1515,7 @@ function findStdPicture(bytes: Uint8Array, start: number) {
   return -1;
 }
 
-const FORM_PROP_FLAGS = [
+export const FORM_PROP_FLAGS = [
   { bit: 1, name: "BackColor" },
   { bit: 2, name: "ForeColor" },
   { bit: 3, name: "NextAvailableID" },
@@ -1538,7 +1542,7 @@ const FORM_PROP_FLAGS = [
   { bit: 27, name: "DrawBuffer" },
 ];
 
-const SITE_PROP_FLAGS = [
+export const SITE_PROP_FLAGS = [
   { bit: 0, name: "Name" },
   { bit: 1, name: "Tag" },
   { bit: 2, name: "Position" },
@@ -1549,7 +1553,7 @@ const SITE_PROP_FLAGS = [
   { bit: 7, name: "Enabled/visibility flags" },
 ];
 
-const GENERIC_CONTROL_FLAGS = [
+export const GENERIC_CONTROL_FLAGS = [
   { bit: 0, name: "Property0" },
   { bit: 1, name: "Property1" },
   { bit: 2, name: "Property2" },
@@ -1584,7 +1588,7 @@ const GENERIC_CONTROL_FLAGS = [
   { bit: 31, name: "Property31" },
 ];
 
-const KNOWN_GUID_LABELS: Record<string, string> = {
+export const KNOWN_GUID_LABELS: Record<string, string> = {
   "{00020430-0000-0000-C000-000000000046}": "OLE Automation / stdole",
   "{00020813-0000-0000-C000-000000000046}": "Microsoft Excel Object Library",
   "{00020905-0000-0000-C000-000000000046}": "Microsoft Word Object Library",
@@ -1627,7 +1631,7 @@ const KNOWN_GUID_LABELS: Record<string, string> = {
   "{8BD21DD0-EC42-11CE-9E0D-00AA006002F3}": "Microsoft Forms 2.0 Label",
 };
 
-const COMMON_FORMS_CONTROLS = [
+export const COMMON_FORMS_CONTROLS = [
   ["Forms.Form.1", "Microsoft Forms 2.0 UserForm"],
   ["Forms.Frame.1", "Microsoft Forms 2.0 Frame control"],
   ["Forms.MultiPage.1", "Microsoft Forms 2.0 MultiPage control"],
@@ -1656,11 +1660,11 @@ const COMMON_FORMS_CONTROLS = [
   ["Forms.HTMLTextArea.1", "Microsoft Forms 2.0 HTML TextArea control"],
 ] as const;
 
-const KNOWN_PROGID_LABELS: Record<string, string> = Object.fromEntries(
+export const KNOWN_PROGID_LABELS: Record<string, string> = Object.fromEntries(
   COMMON_FORMS_CONTROLS.map(([progId, label]) => [progId.toLowerCase(), label]),
 );
 
-function buildBmpFromDib(bytes: Uint8Array, offset: number) {
+export function buildBmpFromDib(bytes: Uint8Array, offset: number) {
   if (offset + 40 > bytes.length) return undefined;
   const headerSize = readU32(bytes, offset);
   if (![40, 52, 56, 108, 124].includes(headerSize)) return undefined;
@@ -1693,7 +1697,7 @@ function buildBmpFromDib(bytes: Uint8Array, offset: number) {
   return { bmp, sourceLength };
 }
 
-function hexDump(bytes: Uint8Array, start: number, length: number) {
+export function hexDump(bytes: Uint8Array, start: number, length: number) {
   const lines: string[] = [];
   for (let offset = start; offset < start + length; offset += 16) {
     const chunk = bytes.subarray(offset, Math.min(offset + 16, start + length));
@@ -1704,7 +1708,7 @@ function hexDump(bytes: Uint8Array, start: number, length: number) {
   return lines.join("\n");
 }
 
-function calculateEntropy(bytes: Uint8Array) {
+export function calculateEntropy(bytes: Uint8Array) {
   if (bytes.length === 0) return 0;
   const counts = new Array<number>(256).fill(0);
   for (const byte of bytes) counts[byte] += 1;
@@ -1715,7 +1719,7 @@ function calculateEntropy(bytes: Uint8Array) {
   }, 0);
 }
 
-function parseCfb(bytes: Uint8Array) {
+export function parseCfb(bytes: Uint8Array) {
   if (!isOle(bytes)) throw new Error("Invalid OLE compound document.");
 
   const sectorSize = 1 << readU16(bytes, 30);
@@ -1840,7 +1844,7 @@ function parseCfb(bytes: Uint8Array) {
   return { entries, streams };
 }
 
-function parseZip(bytes: Uint8Array): ZipEntry[] {
+export function parseZip(bytes: Uint8Array): ZipEntry[] {
   const eocdOffset = findEndOfCentralDirectory(bytes);
   if (eocdOffset < 0) throw new Error("Could not find the Office zip directory.");
 
@@ -1868,7 +1872,7 @@ function parseZip(bytes: Uint8Array): ZipEntry[] {
   return entries;
 }
 
-async function inflateZipEntry(bytes: Uint8Array, entry: ZipEntry) {
+export async function inflateZipEntry(bytes: Uint8Array, entry: ZipEntry) {
   const cursor = entry.localHeaderOffset;
   if (readU32(bytes, cursor) !== 0x04034b50) throw new Error(`Invalid local zip header for ${entry.name}.`);
 
