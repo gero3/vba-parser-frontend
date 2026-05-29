@@ -1,1 +1,2 @@
-// Split into focused browser scripts. See app.ts, extract.ts, model.ts, and UI modules.
+import "./styles.css";
+import "virtual:vba-parser-app";

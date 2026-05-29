@@ -20,16 +20,13 @@ Document processing happens in the browser. There is no backend upload path in t
 ## Development
 
 ```bash
-npm run bundle
+npm install
+npm run dev
 ```
 
-This generates the single browser file:
+Vite serves the app locally and loads `src/main.ts` as the entrypoint. The source is split into focused TypeScript files under `src/`; `vite.config.js` combines them through a virtual module so the browser app still runs as one bundled application in production.
 
-```text
-src/main.js
-```
-
-The TypeScript source is split into smaller files under `src/`. Edit those files, then regenerate `src/main.js`.
+No generated JavaScript is committed.
 
 ## Production Build
 
@@ -37,7 +34,7 @@ The TypeScript source is split into smaller files under `src/`. Edit those files
 npm run build:prod
 ```
 
-This creates a minified static site in `dist/`.
+This creates a minified static site in `dist/` using Vite.
 
 ## Repository Scope
 

@@ -4,11 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bundle": "node scripts/build-main.js",
-    "bundle:prod": "node scripts/build-main.js --prod",
     "dev": "vite --host 127.0.0.1",
-    "build": "npm run bundle",
-    "build:prod": "npm run bundle:prod",
+    "build": "vite build",
+    "build:prod": "vite build --mode production",
     "preview": "vite preview --host 127.0.0.1",
     "preview:prod": "npm run build:prod && vite preview dist --host 127.0.0.1"
   },
